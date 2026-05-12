@@ -142,12 +142,12 @@ body { background: #fff; min-height: 100vh; }
 <div class="page">
   <div class="col-left">
     <div class="ascii-gallery">
-      <div class="media-ascii" data-type="image" data-src="/product1.png"></div>
-      <div class="media-ascii" data-type="image" data-src="/product2.png"></div>
-      <div class="media-ascii" data-type="image" data-src="/1.jpg"></div>
-      <div class="media-ascii" data-type="image" data-src="/2.png"></div>
-      <div class="media-ascii" data-type="image" data-src="/3.png"></div>
-      <div class="media-ascii" data-type="video" data-src="/4.mov"></div>
+      <div class="media-ascii" data-type="image" data-src="./product1.png"></div>
+      <div class="media-ascii" data-type="image" data-src="./product2.png"></div>
+      <div class="media-ascii" data-type="image" data-src="./1.jpg"></div>
+      <div class="media-ascii" data-type="image" data-src="./2.png"></div>
+      <div class="media-ascii" data-type="image" data-src="./3.png"></div>
+      <div class="media-ascii" data-type="video" data-src="./4.mov"></div>
     </div>
   </div>
 
@@ -267,10 +267,10 @@ function renderProduct(data) {
    ============================================================ */
 (function(){
   var sources = [
-    {src:'/1.jpg',  type:'image'},
-    {src:'/3.mp4',  type:'video'},
-    {src:'/2.png',  type:'image'},
-    {src:'/4.mov',  type:'video'}
+    {src:'./1.jpg',  type:'image'},
+    {src:'./3.mp4',  type:'video'},
+    {src:'./2.png',  type:'image'},
+    {src:'./4.mov',  type:'video'}
   ];
   var popup      = document.getElementById('popup');
   var popupClose = document.getElementById('popup-close');
