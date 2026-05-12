@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paulina Meyle</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+<link rel="stylesheet" type="text/css" href="slideFrame.css" />
+<style>
+:root { --fg: #949494; --muted: #c1c1c1; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; border: none; background: none; font-family: sans-serif; }
+body { background: #fff; min-height: 100vh; }
+.page { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+.col-left { display: flex; flex-direction: column; }
+.product-image { width: 100%; background: #f4f4f4; display: flex; align-items: center; justify-content: center; padding: 60px 0; }
+.col-right { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 40px; gap: 49px; }
+.states { display: flex; flex-direction: column; align-items: center; gap: 13px; width: 100%; }
+.description { width: 292px; padding: 20px; font-size: 14px; color: rgba(193,193,193,0.76); text-align: center; line-height: 20px; font-weight: 500; white-space: pre-line; }
+
+.pills { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; position: relative; padding: 20px 0; }
+.pills > * { position: relative; z-index: 1; }
+
+.bridge { background: #fff; flex-shrink: 0; }
+.hidden + .bridge { display: none; }
+.bridge:has(+ .hidden) { display: none; }
+
+/* ─── bar shape (all container-* + toggle-* bars) ─── */
+.container-head, .toggle-size, .container-sizes, .toggle-chosen, .toggle-price {
+  background: #fff; border: 1px solid #fff; border-radius: 16px; display: flex; align-items: center; padding: 8px 10px;
+}
+
+/* ─── static containers ─── */
+.container-head { height: 34px; justify-content: center; }
+.container-sizes { gap: 4px; }
+
+/* ─── clickable toggles ─── */
+.toggle-size, .toggle-price { height: 34px; justify-content: center; gap: 6px; cursor: pointer; }
+.toggle-chosen { justify-content: center; cursor: pointer; }
+
+/* ─── container-cta-text (muted label) ─── */
+.container-cta-text { font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; white-space: nowrap; color: var(--muted); font-weight: 500; }
+
+/* ─── container-pill + toggle-opt share the same pill shape ─── */
+.container-pill, .toggle-opt {
+  display: flex; align-items: center; justify-content: center;
+  height: 18px; border-radius: 10px; position: relative; flex-shrink: 0; padding: 0 10px;
+}
+.toggle-opt { cursor: pointer; }
+
+/* ─── container-pill children ─── */
+.container-pill-border { position: absolute; inset: 0; border-radius: 10px; border: 1px solid var(--fg); pointer-events: none; }
+.container-pill-text { font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; white-space: nowrap; color: var(--fg); font-weight: 500; position: relative; z-index: 1; }
+
+/* ─── container-pill variants ─── */
+.container-pill--tight, .toggle-opt--tight { width: 33px; padding: 0; }
+.container-pill--on { background: var(--fg); }
+.container-pill--on .container-pill-text { color: #fff; }
+
+/* ─── toggle-size states ─── */
+.toggle-size .container-pill { width: 48px; }
+.toggle-size .container-pill:last-of-type { display: none; }
+.toggle-size.is-active .container-cta-text { display: none; }
+.toggle-size.is-active:hover .container-pill:first-of-type { display: none; }
+.toggle-size.is-active:hover .container-pill:last-of-type { display: flex; }
+.toggle-size:not(.is-active):hover .container-cta-text { color: var(--fg); }
+
+/* ─── hover: fill pill + invert text ─── */
+.toggle-opt:hover,
+.toggle-size:hover .container-pill,
+.toggle-chosen:hover .container-pill,
+.toggle-price:hover .container-pill { background: var(--fg); }
+
+.toggle-opt:hover .container-pill-text,
+.toggle-size:hover .container-pill .container-pill-text,
+.toggle-chosen:hover .container-pill .container-pill-text,
+.toggle-price:hover .container-pill .container-pill-text { color: #fff; }
+
+/* ─── container-brand ─── */
+.container-brand { font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); font-weight: 500; text-align: center; }
+
+/* ─── utility ─── */
+.hidden { display: none !important; }
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--fg); color: #fff; padding: 10px 20px; border-radius: 16px; font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; z-index: 9999; }
+
+/* ascii item */
+.media-ascii { position: relative; width: 100%; cursor: zoom-in; overflow: hidden; display: block; }
+.media-ascii-sizer { display: block; width: 100%; }
+.media-element { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: block; }
+.ascii-bg { position: absolute; z-index: 1; pointer-events: none; }
+.ascii-output { position: absolute; z-index: 2; margin: 0; white-space: pre; line-height: 1; pointer-events: none; overflow: hidden; }
+
+/* debug */
+#debug-overlay { position: fixed; inset: 0; z-index: 4000; pointer-events: none; display: none; }
+#debug-overlay.visible { display: block; }
+#debug-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* gooey */
+.gooey { filter: url(#goo); }
+
+/* popup */
+.popup-overlay { position: fixed; inset: 0; z-index: 5000; background: #fff; overflow-y: auto; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.popup-overlay.open { opacity: 1; pointer-events: all; }
+.popup-close { position: fixed; top: 20px; right: 24px; z-index: 5100; font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; color: #949494; font-weight: 500; cursor: pointer; background: #f4f4f4; border-radius: 16px; padding: 8px 14px; border: none; display: none; }
+.popup-close.visible { display: block; }
+.popup-media-list { display: flex; flex-direction: column; width: 100%; }
+.popup-item { width: 100%; flex-shrink: 0; cursor: zoom-out; }
+.popup-item img, .popup-item video { width: 100%; height: 100vh; object-fit: cover; display: block; }
+
+#gui-container { position: fixed; top: 10px; right: 10px; z-index: 6000; }
+
+@media (max-width: 768px) {
+  .page { grid-template-columns: 1fr; }
+  .col-right { position: static; height: auto; }
+  .col-left { overflow-x: scroll; -webkit-overflow-scrolling: touch; }
+  .col-left::-webkit-scrollbar { height: 4px; }
+  .col-left::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 2px; }
+  .ascii-gallery { display: flex; flex-direction: row; width: max-content; }
+  .media-ascii { width: 100vw; min-width: 100vw; flex-shrink: 0; cursor: default; }
+  .media-element { object-fit: contain; }
+}
+</style>
+</head>
+<body>
+
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <defs>
+    <filter id="goo" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" id="goo-blur" stdDeviation="4" result="blur" />
+      <feColorMatrix in="blur" mode="matrix" id="goo-matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 50 -10" result="goo" />
+      <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 50 -8" result="gooWide" />
+      <feComposite in="gooWide" in2="goo" operator="out" result="borderRing" />
+      <feColorMatrix in="borderRing" type="matrix" values="0 0 0 0 0.58  0 0 0 0 0.58  0 0 0 0 0.58  0 0 0 1 0" result="coloredBorder" />
+      <feFlood flood-color="#ffffff" flood-opacity="1" result="white" />
+      <feComposite in="white" in2="goo" operator="in" result="whiteFill" />
+      <feComposite in="coloredBorder" in2="whiteFill" operator="over" result="combined" />
+      <feComposite in="SourceGraphic" in2="combined" operator="atop" />
+    </filter>
+  </defs>
+</svg>
+
+<div class="page">
+  <div class="col-left">
+    <div class="ascii-gallery">
+      <div class="media-ascii" data-type="image" data-src="/product1.png"></div>
+      <div class="media-ascii" data-type="image" data-src="/product2.png"></div>
+      <div class="media-ascii" data-type="image" data-src="/1.jpg"></div>
+      <div class="media-ascii" data-type="image" data-src="/2.png"></div>
+      <div class="media-ascii" data-type="image" data-src="/3.png"></div>
+      <div class="media-ascii" data-type="video" data-src="/4.mov"></div>
+    </div>
+  </div>
+
+  <div class="col-right">
+    <div class="states">
+      <div class="description" id="description"></div>
+      <div class="pills gooey">
+        <div class="container-head"><span class="container-cta-text" id="sku-text"></span></div>
+        <div class="bridge"></div>
+        <button class="toggle-size" id="toggle">
+          <span class="container-cta-text">choose</span>
+          <div class="container-pill"><div class="container-pill-border"></div><span class="container-pill-text">SIZE</span></div>
+          <div class="container-pill"><div class="container-pill-border"></div><span class="container-pill-text">X</span></div>
+        </button>
+        <div class="bridge"></div>
+        <div class="container-sizes hidden" id="options"></div>
+        <div class="bridge"></div>
+        <div class="toggle-chosen hidden" id="display">
+          <div class="container-pill container-pill--tight container-pill--on"><div class="container-pill-border"></div><span class="container-pill-text" id="display-value"></span></div>
+        </div>
+        <div class="bridge"></div>
+        <button class="toggle-price hidden" id="checkout">
+          <span class="container-cta-text">Purchase</span>
+          <div class="container-pill"><div class="container-pill-border"></div><span class="container-pill-text" id="price-text"></span></div>
+        </button>
+      </div>
+    </div>
+    <p class="container-brand" id="brand-text"></p>
+  </div>
+</div>
+
+<div id="debug-overlay"><canvas id="debug-canvas"></canvas></div>
+<div class="popup-overlay" id="popup"><div class="popup-media-list" id="popup-list"></div></div>
+<button class="popup-close" id="popup-close">Close ✕</button>
+<div id="gui-container"></div>
+
+<script src="slideFrame.min.js"></script>
+<script>
+/* ============================================================
+   PRODUCT DATA
+   ============================================================ */
+var DATA = {
+  sku: "TOP-001",
+  brand: "paulina meyle",
+  price: 200,
+  currency: "EUR",
+  description: "Crewneck knit crafted from compact crepe ribbed cotton, featuring irregular rib detailing at the hem and cuffs, and a seasonal label at the back neckline. Cut to a regular fit and hip length.\n\n+ Regular fit\n+ Hip length\n+ Ribbed crewneck\n+ Seasonal label\n+ Female model is 178 cm and wears size XS",
+  sizes: [
+    { label: "XS", paymentLink: "https://thaanh.com" },
+    { label: "S",  paymentLink: "" },
+    { label: "M",  paymentLink: "" },
+    { label: "L",  paymentLink: "" },
+    { label: "XL", paymentLink: "" }
+  ]
+};
+
+function renderProduct(data) {
+  document.getElementById('sku-text').textContent = data.sku;
+  document.getElementById('brand-text').textContent = data.brand;
+  document.getElementById('price-text').textContent = data.price + ' ' + data.currency;
+  document.getElementById('description').innerHTML = data.description.split('\n').map(function(l) {
+    return l.trim() ? '<p>' + l + '</p>' : '<p>&nbsp;</p>';
+  }).join('');
+  var el = document.getElementById('options');
+  el.innerHTML = '';
+  data.sizes.forEach(function(s) {
+    var btn = document.createElement('button');
+    btn.className = 'toggle-opt toggle-opt--tight';
+    btn.id = 'opt-' + s.label.toLowerCase();
+    btn.innerHTML = '<div class="container-pill-border"></div><span class="container-pill-text">' + s.label + '</span>';
+    el.appendChild(btn);
+  });
+}
+
+/* ============================================================
+   PRODUCT UI
+   ============================================================ */
+(function(){
+  renderProduct(DATA);
+  var isOpen = false, chosen = null, paymentLinks = {};
+  DATA.sizes.forEach(function(s){ paymentLinks[s.label] = s.paymentLink; });
+  function refresh() {
+    var btn   = document.getElementById('toggle');
+    var opts  = document.getElementById('options');
+    var disp  = document.getElementById('display');
+    var val   = document.getElementById('display-value');
+    var buy   = document.getElementById('checkout');
+    isOpen ? btn.classList.add('is-active') : btn.classList.remove('is-active');
+    if (isOpen && chosen) {
+      opts.classList.add('hidden'); disp.classList.remove('hidden');
+      val.textContent = chosen; buy.classList.remove('hidden');
+    } else if (isOpen) {
+      opts.classList.remove('hidden'); disp.classList.add('hidden'); buy.classList.add('hidden');
+    } else {
+      opts.classList.add('hidden'); disp.classList.add('hidden'); buy.classList.add('hidden');
+    }
+  }
+  document.getElementById('toggle').addEventListener('click', function(){ isOpen=!isOpen; if(!isOpen)chosen=null; refresh(); });
+  DATA.sizes.forEach(function(s){
+    document.getElementById('opt-'+s.label.toLowerCase()).addEventListener('click', function(){ chosen=s.label; refresh(); });
+  });
+  document.getElementById('display').addEventListener('click', function(){ chosen=null; refresh(); });
+  document.getElementById('checkout').addEventListener('click', function(){
+    if (chosen && paymentLinks[chosen]) {
+      var sf = document.querySelector('.slideframe');
+      sf.classList.add('slideframe--visible');
+      document.body.classList.add('slideframe-body--noscroll');
+      document.querySelector('.slideframe-container-frame').src = paymentLinks[chosen];
+      document.querySelector('.slideframe-container-titlebar-title').textContent = chosen;
+      document.querySelector('.slideframe-container-titlebar-external').href = paymentLinks[chosen];
+    }
+  });
+})();
+
+/* ============================================================
+   POPUP
+   ============================================================ */
+(function(){
+  var sources = [
+    {src:'/1.jpg',  type:'image'},
+    {src:'/3.mp4',  type:'video'},
+    {src:'/2.png',  type:'image'},
+    {src:'/4.mov',  type:'video'}
+  ];
+  var popup      = document.getElementById('popup');
+  var popupClose = document.getElementById('popup-close');
+  var popupList  = document.getElementById('popup-list');
+  var isOpen     = false;
+
+  sources.forEach(function(m){
+    var item = document.createElement('div'); item.className='popup-item';
+    item.addEventListener('click', close);
+    var el;
+    if (m.type === 'video') {
+      el = document.createElement('video');
+      el.src=m.src; el.autoplay=true; el.muted=true; el.loop=true; el.playsInline=true;
+    } else {
+      el = document.createElement('img'); el.src=m.src;
+    }
+    item.appendChild(el); popupList.appendChild(item);
+  });
+
+  function open() {
+    popup.classList.add('open'); popupClose.classList.add('visible');
+    popup.scrollTop=0; document.body.style.overflow='hidden';
+    popup.querySelectorAll('video').forEach(function(v){ v.play().catch(function(){}); });
+    isOpen=true;
+  }
+  function close() {
+    popup.classList.remove('open'); popupClose.classList.remove('visible');
+    document.body.style.overflow='';
+    popup.querySelectorAll('video').forEach(function(v){ v.pause(); });
+    isOpen=false;
+  }
+  popupClose.addEventListener('click', close);
+  if (!window.matchMedia('(max-width: 768px)').matches) {
+    document.querySelectorAll('.media-ascii').forEach(function(el){ el.addEventListener('click', open); });
+  }
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && isOpen) close(); });
+})();
+
+/* ============================================================
+   ASCII + DEBUG
+   ============================================================ */
+(function(){
+
+  var CHAR_ASPECT = 0.6; // monospace char width / height
+
+  /* ---------- settings ---------- */
+  var presets = {
+    Default:{ charSet:'  .:-=+*#%@', charsPerRow:152, blockPadding:0, contrastCentre:0.41047733930725483, contrastEdge:1.8001033947957954, brightnessCentre:-0.5, brightnessEdge:0.5 },
+    Blocks: { charSet:' ░▒▓█',       charsPerRow:60, blockPadding:0, contrastCentre:0.8, contrastEdge:1.5, brightnessCentre:0.5, brightnessEdge:-0.5 },
+    Minimal:{ charSet:' ·:+=%$#',    charsPerRow:80, blockPadding:0, contrastCentre:0.6, contrastEdge:1.8, brightnessCentre:0.5, brightnessEdge:-0.5 },
+    Matrix: { charSet:' meyle',      charsPerRow:80, blockPadding:0, contrastCentre:1.5, contrastEdge:2,   brightnessCentre:0.5, brightnessEdge:-0.5 }
+  };
+
+  var S = {
+    preset:           'Default',
+    scrollMappingModes:['Mirrored','Linear'],
+    scrollMapping:    'Mirrored',
+    mirroredCenterWidth: 0.2,
+    charsPerRow:      152,
+    blockPadding:     0,
+    contrastCentre:   0.41047733930725483,
+    contrastEdge:     1.8001033947957954,
+    brightnessCentre: -0.5,
+    brightnessEdge:   0.5,
+    charSet:          '  .:-=+*#%@',
+    color:            false,
+    colorPalette:     'Full Color',
+    asciiFontColor:   '#ffffff',
+    asciiBackgroundColor: '#000000',
+    asciiBackgroundOpacity: 0,
+    fontFamily:       'monospace',
+    showMedia:        true,
+    invert:           false,
+    videoSpeed:       1,
+    loopMedia:        true,
+    heightMode:       'crop',   // 'crop' | 'stretch'
+    debugView:        false,
+    gooeyEnabled:     true,
+    gooeyBlur:        4,
+    gooeyThreshold:   0.2,
+    gooeyStrength:    50,
+    gooeyGap:         13,
+    gooeyBorderWidth:  0.04,
+    bridgeWidth:      15,
+    bridgeHeight:     15
+  };
+
+  /* ---------- colour palettes ---------- */
+  function greyPal(n){
+    return Array.from({length:n},function(_,i){var v=Math.round(i/(n-1)*255);return[v,v,v];});
+  }
+  function colPal(n){
+    var s=256/(n-1);
+    return Array.from({length:n},function(_,r){
+      return Array.from({length:n},function(_,g){
+        return Array.from({length:n},function(_,b){
+          return [Math.round(r*s),Math.round(g*s),Math.round(b*s)];
+        });
+      }).flat();
+    }).flat();
+  }
+  var colorPalettes = {
+    'Monochrome':[[0,0,0],[255,255,255]],
+    'Grey2Bit':greyPal(4), 'Grey4Bit':greyPal(16), 'Grey8Bit':greyPal(256),
+    'Color3Bit':colPal(8), 'Color4Bit':colPal(16),  'Full Color':null
+  };
+  var fontOptions = ['monospace','Courier New','Lucida Console','Monaco','Consolas'];
+
+  /* ---------- helpers ---------- */
+  function getColWidth(){
+    var el = document.querySelector('.col-left');
+    return el ? el.offsetWidth : window.innerWidth / 2;
+  }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function throttle(fn,wait){
+    var last=0;
+    return function(){
+      var now=Date.now();
+      if(now-last>=wait){ fn.apply(this,arguments); last=now; }
+    };
+  }
+
+  /* ---------- derive layout numbers (single source of truth) ----------
+     Given current settings + colWidth, return all geometry.
+     Used by both layout() and renderFrame() so they always agree.
+  */
+  function computeGeometry(naturalW, naturalH){
+    var colW  = getColWidth();
+    var pad   = S.blockPadding;
+    var cols  = Math.max(1, Math.round(S.charsPerRow));
+    var ow    = Math.max(1, colW - 2*pad);   // overlay width
+    var charW = ow / cols;
+    var charH = charW / CHAR_ASPECT;
+    var fs    = charH;
+
+    // natural height, then snap to full row multiple
+    var naturalMediaH = colW * (naturalH / naturalW);
+    var oh            = Math.max(charH, naturalMediaH - 2*pad); // overlay height before snap
+    var rows          = Math.max(1, Math.floor(oh / charH));
+    var snappedOh     = rows * charH;          // exact overlay height
+    var snappedMediaH = snappedOh + 2*pad;     // exact container/media height (no rounding)
+
+    return {
+      colW:   colW,
+      pad:    pad,
+      cols:   cols,
+      rows:   rows,
+      charW:  charW,
+      charH:  charH,
+      fs:     fs,
+      ow:     ow,
+      oh:     snappedOh,
+      mediaH: snappedMediaH
+    };
+  }
+
+  /* ---------- debug canvas ---------- */
+  var debugOverlay = document.getElementById('debug-overlay');
+  var debugCanvas  = document.getElementById('debug-canvas');
+  var dctx         = debugCanvas.getContext('2d');
+
+  function resizeDebug(){
+    debugCanvas.width  = window.innerWidth;
+    debugCanvas.height = window.innerHeight;
+  }
+
+  function drawDebug(){
+    if(!S.debugView) return;
+    resizeDebug();
+    dctx.clearRect(0,0,debugCanvas.width,debugCanvas.height);
+    var vh=window.innerHeight, vw=window.innerWidth;
+
+    function dash(x1,y1,x2,y2,col,lw,d){
+      dctx.save(); dctx.strokeStyle=col; dctx.lineWidth=lw; dctx.setLineDash(d);
+      dctx.beginPath(); dctx.moveTo(x1,y1); dctx.lineTo(x2,y2); dctx.stroke(); dctx.restore();
+    }
+    function lbl(t,x,y,col,align){
+      dctx.save(); dctx.fillStyle=col; dctx.font='10px monospace';
+      dctx.textAlign=align||'right'; dctx.fillText(t,x,y); dctx.restore();
+    }
+
+    // viewport centre
+    dash(0,vh/2,vw,vh/2,'rgba(255,255,255,0.9)',1.5,[6,4]);
+    lbl('viewport centre',vw-10,vh/2-7,'rgba(255,255,255,0.9)');
+
+    // centre zone
+    var hw=S.mirroredCenterWidth*vh*0.5;
+    var zT=vh/2-hw, zB=vh/2+hw;
+    dctx.save(); dctx.fillStyle='rgba(255,220,50,0.08)'; dctx.fillRect(0,zT,vw,zB-zT); dctx.restore();
+    dash(0,zT,vw,zT,'rgba(255,220,50,0.7)',1,[4,4]);
+    dash(0,zB,vw,zB,'rgba(255,220,50,0.7)',1,[4,4]);
+    lbl('centre zone ↑',vw-10,zT-7,'rgba(255,220,50,0.9)');
+    lbl('centre zone ↓',vw-10,zB+13,'rgba(255,220,50,0.9)');
+
+    // outer fade
+    var oT=vh/2-vh*0.8, oB=vh/2+vh*0.8;
+    dash(0,oT,vw,oT,'rgba(100,200,255,0.6)',1,[2,6]);
+    dash(0,oB,vw,oB,'rgba(100,200,255,0.6)',1,[2,6]);
+    lbl('ascii max (outer)',vw-10,oT-7,'rgba(100,200,255,0.8)');
+
+    // per-instance
+    instances.forEach(function(inst){
+      if(!inst.naturalW) return;
+      var r = inst.container.getBoundingClientRect();
+      if(r.bottom<0 || r.top>vh) return;
+      var cy = r.top + r.height/2;
+      var g  = computeGeometry(inst.naturalW, inst.naturalH);
+
+      // media box
+      dctx.save(); dctx.strokeStyle='rgba(255,80,80,0.7)'; dctx.lineWidth=1; dctx.setLineDash([]);
+      dctx.strokeRect(r.left,r.top,r.width,r.height); dctx.restore();
+
+      // overlay inset box
+      dctx.save(); dctx.strokeStyle='rgba(255,160,50,0.9)'; dctx.lineWidth=1; dctx.setLineDash([3,2]);
+      dctx.strokeRect(r.left+g.pad, r.top+g.pad, g.ow, g.oh); dctx.restore();
+
+      // centre dot
+      dctx.save(); dctx.fillStyle='rgba(255,80,80,0.9)';
+      dctx.beginPath(); dctx.arc(r.left+14,cy,5,0,Math.PI*2); dctx.fill(); dctx.restore();
+
+      // line to vp centre
+      dash(r.left+14,cy,vw/2,vh/2,'rgba(255,80,80,0.25)',1,[3,3]);
+
+      // progress bar
+      var barH = r.height * inst.scrollP;
+      dctx.save(); dctx.fillStyle='rgba(255,80,80,0.2)';
+      dctx.fillRect(r.left, r.bottom-barH, 6, barH); dctx.restore();
+
+      lbl(
+        'p='+inst.scrollP.toFixed(2)+'  cols='+g.cols+'  rows='+g.rows+'  fs='+g.fs.toFixed(2)+'px',
+        r.left+14, r.top+14, 'rgba(255,140,100,1)', 'left'
+      );
+    });
+  }
+
+  /* ---------- MediaASCII ---------- */
+  var instances = [];
+  var loadedCount = 0;
+  var totalCount = document.querySelectorAll('.media-ascii').length;
+
+  function equalizeHeights() {
+    var isMobile = window.matchMedia('(max-width: 768px)').matches;
+    if (!isMobile || instances.length === 0) return;
+    var maxH = 0;
+    instances.forEach(function(i) {
+      var h = i.container.offsetHeight;
+      if (h > maxH) maxH = h;
+    });
+    if (maxH > 0) {
+      instances.forEach(function(i) {
+        i.container.style.height = maxH + 'px';
+        i.sizer.style.height = maxH + 'px';
+      });
+    }
+  }
+
+  function MediaASCII(el){
+    this.container = el;
+    this.type      = el.dataset.type;
+    this.src       = el.dataset.src;
+    this.isVideo   = this.type === 'video';
+    this.naturalW  = 0;
+    this.naturalH  = 0;
+    this.scrollP   = 0;
+    this.rafId     = null;
+    this.offscreen = document.createElement('canvas');
+    this.offCtx    = this.offscreen.getContext('2d');
+    this._create();
+    this._bindMedia();
+    this._bindScroll();
+    instances.push(this);
+  }
+
+  MediaASCII.prototype._create = function(){
+    this.sizer = document.createElement('div');
+    this.sizer.className = 'media-ascii-sizer';
+
+    if(this.isVideo){
+      this.media = document.createElement('video');
+      this.media.muted=true; this.media.playsInline=true;
+      this.media.autoplay=true; this.media.loop=true;
+      var src = document.createElement('source');
+      src.src=this.src; src.type='video/mp4';
+      this.media.appendChild(src);
+    } else {
+      this.media = document.createElement('img');
+      this.media.src = this.src;
+    }
+    this.media.className = 'media-element';
+
+    this.bg  = document.createElement('div'); this.bg.className='ascii-bg';
+    this.pre = document.createElement('pre'); this.pre.className='ascii-output';
+
+    this.container.appendChild(this.sizer);
+    this.container.appendChild(this.media);
+    this.container.appendChild(this.bg);
+    this.container.appendChild(this.pre);
+
+    if(this.isVideo) this.media.play().catch(function(){});
+  };
+
+  MediaASCII.prototype._bindMedia = function(){
+    var self = this;
+    function onLoad(){
+      self.naturalW = self.isVideo ? self.media.videoWidth  : self.media.naturalWidth;
+      self.naturalH = self.isVideo ? self.media.videoHeight : self.media.naturalHeight;
+      self.layout();
+      self.updateScroll();
+      self.render();
+      loadedCount++;
+      if (loadedCount >= totalCount) setTimeout(equalizeHeights, 100);
+      if(self.isVideo) self.media.play().catch(function(){});
+    }
+    if(this.isVideo){
+      this.media.addEventListener('loadedmetadata', onLoad);
+      this.media.addEventListener('play',  function(){ self._startLoop(); });
+      this.media.addEventListener('pause', function(){ self._stopLoop(); });
+    } else {
+      if(this.media.complete && this.media.naturalWidth) onLoad();
+      else this.media.addEventListener('load', onLoad);
+    }
+  };
+
+  MediaASCII.prototype._bindScroll = function(){
+    var self = this;
+    var h = throttle(function(){
+      self.layout();
+      self.updateScroll();
+      if(!self.isVideo) self.render();
+      drawDebug();
+    }, 50);
+    window.addEventListener('scroll', h);
+    window.addEventListener('resize', h);
+    var colLeft = document.querySelector('.col-left');
+    if (colLeft) colLeft.addEventListener('scroll', h);
+  };
+
+  MediaASCII.prototype._startLoop = function(){
+    var self = this;
+    function loop(){
+      if(!self.media.paused && !self.media.ended){
+        self.updateScroll();
+        self.render();
+        self.rafId = requestAnimationFrame(loop);
+      }
+    }
+    loop();
+  };
+
+  MediaASCII.prototype._stopLoop = function(){
+    if(this.rafId) cancelAnimationFrame(this.rafId);
+  };
+
+  /* layout: size the container and position overlay layers */
+  MediaASCII.prototype.layout = function(){
+    if(!this.naturalW) return;
+    var g = computeGeometry(this.naturalW, this.naturalH);
+
+    // ── Step 1: position overlay at computed size
+    this.pre.style.left       = g.pad + 'px';
+    this.pre.style.top        = g.pad + 'px';
+    this.pre.style.width      = g.ow  + 'px';
+    this.pre.style.height     = 'auto'; // let it size naturally first
+    this.pre.style.fontSize   = g.fs  + 'px';
+    this.pre.style.lineHeight = '1';
+    this.pre.style.fontFamily = S.fontFamily;
+    this.pre.style.color      = S.asciiFontColor;
+
+    this.bg.style.left            = g.pad + 'px';
+    this.bg.style.top             = g.pad + 'px';
+    this.bg.style.width           = g.ow  + 'px';
+    this.bg.style.backgroundColor = S.asciiBackgroundColor;
+    this.bg.style.opacity         = S.asciiBackgroundOpacity;
+
+    this.media.style.opacity = S.showMedia ? '1' : '0';
+    if(this.isVideo){
+      this.media.playbackRate = S.videoSpeed;
+      this.media.loop         = S.loopMedia;
+    }
+
+    // ── Step 2: measure actual rendered height of the pre after font is applied
+    // Use a rAF so the browser has painted at least once with the new font size
+    var self = this;
+    var pad  = g.pad;
+    requestAnimationFrame(function(){
+      var renderedH = self.pre.offsetHeight; // real ink height
+      if(!renderedH) renderedH = g.oh;       // fallback before first paint
+
+      var finalMediaH;
+      if(S.heightMode === 'crop'){
+        // container snaps to pre's real height + padding
+        finalMediaH = renderedH + 2*pad;
+      } else {
+        // stretch: pre and bg fill the media's natural-ratio height
+        finalMediaH = g.mediaH;
+        self.pre.style.height = (finalMediaH - 2*pad) + 'px';
+        self.bg.style.height  = (finalMediaH - 2*pad) + 'px';
+      }
+
+      // apply bg height for crop mode too
+      if(S.heightMode === 'crop'){
+        self.bg.style.height = renderedH + 'px';
+      }
+
+      self.sizer.style.height     = finalMediaH + 'px';
+      self.container.style.height = finalMediaH + 'px';
+    });
+  };
+
+  /* scroll: compute p and derive contrast/brightness */
+  MediaASCII.prototype.updateScroll = function(){
+    var rect = this.container.getBoundingClientRect();
+    var isMobile = window.matchMedia('(max-width: 768px)').matches;
+    var dist;
+    if (isMobile) {
+      var vw = window.innerWidth;
+      var cx = rect.left + rect.width / 2;
+      dist = Math.abs(cx - vw / 2);
+      var hw = S.mirroredCenterWidth * vw * 0.5;
+      var outer = vw * 0.8;
+    } else {
+      var vh = window.innerHeight;
+      var cy = rect.top + rect.height / 2;
+      dist = Math.abs(cy - vh / 2);
+      var hw = S.mirroredCenterWidth * vh * 0.5;
+      var outer = vh * 0.8;
+    }
+    this.scrollP = dist <= hw ? 1 : 1 - Math.min(1, (dist - hw) / (outer - hw));
+    this.contrast   = lerp(S.contrastEdge,   S.contrastCentre,   this.scrollP);
+    this.brightness = lerp(S.brightnessEdge, S.brightnessCentre, this.scrollP);
+  };
+
+  /* render: sample pixels and build ASCII string */
+  MediaASCII.prototype.render = function(){
+    if(!this.naturalW) return;
+    var g = computeGeometry(this.naturalW, this.naturalH);
+    if(!g.cols || !g.rows) return;
+
+    // draw media into offscreen canvas at full media pixel size
+    this.offscreen.width  = g.colW;
+    this.offscreen.height = g.mediaH;
+    try { this.offCtx.drawImage(this.media, 0, 0, g.colW, g.mediaH); }
+    catch(e){ return; }
+
+    var imgData = this.offCtx.getImageData(0, 0, g.colW, g.mediaH);
+    var px      = imgData.data;
+
+    if(S.invert){
+      for(var k=0;k<px.length;k+=4){px[k]=255-px[k];px[k+1]=255-px[k+1];px[k+2]=255-px[k+2];}
+    }
+
+    var con = this.contrast;
+    var bri = this.brightness;
+    var ascii = '';
+
+    for(var row=0; row<g.rows; row++){
+      for(var col=0; col<g.cols; col++){
+        // sample centre of the char's pixel region on the full media
+        var sx = Math.min(g.colW-1,  Math.round(g.pad + col*g.charW + g.charW*0.5));
+        var sy = Math.min(g.mediaH-1,Math.round(g.pad + row*g.charH + g.charH*0.5));
+        var idx = (sy * g.colW + sx) * 4;
+
+        var r = px[idx], gv = px[idx+1], b = px[idx+2];
+        r  = Math.min(255,Math.max(0,Math.round(((r /255-0.5)*con+0.5+bri)*255)));
+        gv = Math.min(255,Math.max(0,Math.round(((gv/255-0.5)*con+0.5+bri)*255)));
+        b  = Math.min(255,Math.max(0,Math.round(((b /255-0.5)*con+0.5+bri)*255)));
+
+        if(S.colorPalette !== 'Full Color' && colorPalettes[S.colorPalette]){
+          var closest = getClosestColor(r, gv, b);
+          r=closest[0]; gv=closest[1]; b=closest[2];
+        }
+
+        var bright = (r+gv+b)/3;
+        var ci = Math.min(S.charSet.length-1, Math.max(0, Math.floor(bright/255*S.charSet.length)));
+        var ch = S.charSet[ci] !== undefined ? S.charSet[ci] : ' ';
+        ascii += S.color ? '<span style="color:rgb('+r+','+gv+','+b+')">'+ch+'</span>' : ch;
+      }
+      ascii += '\n';
+    }
+    this.pre.innerHTML = ascii;
+  };
+
+  function getClosestColor(r,g,b){
+    var pal = colorPalettes[S.colorPalette]; if(!pal) return [r,g,b];
+    var cl=pal[0], md=Infinity;
+    for(var i=0;i<pal.length;i++){
+      var c=pal[i], d=Math.sqrt((r-c[0])*(r-c[0])+(g-c[1])*(g-c[1])+(b-c[2])*(b-c[2]));
+      if(d<md){md=d;cl=c;}
+    }
+    return cl;
+  }
+
+  /* ---------- refresh all ---------- */
+  function refreshAll(){
+    instances.forEach(function(i){
+      i.layout();
+      i.updateScroll();
+      if(i.isVideo && !i.media.paused) return;
+      i.render();
+    });
+    drawDebug();
+  }
+
+  /* ---------- GUI ---------- */
+  var gui = new dat.GUI({autoPlace:false});
+  document.getElementById('gui-container').appendChild(gui.domElement);
+  // To unhide the dat.GUI controls, delete or comment out the line below:
+  gui.domElement.style.display = 'none';
+
+  function allCtrls(gui){
+    var list = [].concat(gui.__controllers);
+    Object.values(gui.__folders||{}).forEach(function(f){ list=list.concat(allCtrls(f)); });
+    return list;
+  }
+
+  gui.add(S,'preset',Object.keys(presets)).name('Preset').onChange(function(p){
+    Object.assign(S, presets[p]);
+    allCtrls(gui).forEach(function(c){ c.updateDisplay(); });
+    refreshAll();
+  });
+
+  function ctrl(folder, prop){
+    var args = Array.prototype.slice.call(arguments, 2);
+    var c = folder.add.apply(folder, [S,prop].concat(args));
+    c.onChange(refreshAll);
+    return c;
+  }
+
+  // Debug
+  var df = gui.addFolder('Debug');
+  df.add(S,'debugView').name('Show Helper Lines').onChange(function(v){
+    debugOverlay.classList.toggle('visible', v);
+    if(v){ resizeDebug(); drawDebug(); }
+  });
+  // Save settings as JSON
+  var saveObj = { 'Save settings ↓': function(){
+    var keys = ['preset','scrollMapping','mirroredCenterWidth','charsPerRow','blockPadding',
+      'heightMode','contrastCentre','contrastEdge','brightnessCentre','brightnessEdge',
+      'charSet','color','colorPalette','asciiFontColor','asciiBackgroundColor',
+      'asciiBackgroundOpacity','fontFamily','showMedia','invert','videoSpeed','loopMedia'];
+    var out = {};
+    keys.forEach(function(k){ out[k] = S[k]; });
+    var blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ascii-settings.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }};
+  df.add(saveObj, 'Save settings ↓');
+  df.open();
+
+  // Scroll
+  var sf = gui.addFolder('Scroll Behavior');
+  ctrl(sf,'scrollMapping', S.scrollMappingModes);
+  ctrl(sf,'mirroredCenterWidth', 0, 1).name('Center Zone Width').step(0.01);
+  sf.open();
+
+  // Characters
+  var cf = gui.addFolder('Characters');
+  ctrl(cf,'charsPerRow', 1, 500).name('Chars Per Row').step(1);
+  ctrl(cf,'blockPadding', 0, 200).name('Block Padding (px)').step(1);
+  ctrl(cf,'heightMode', ['crop','stretch']).name('Height Mode');
+  cf.open();
+
+  // Effect
+  var ef = gui.addFolder('Effect Ranges');
+  ctrl(ef,'contrastCentre',   0, 3).name('Contrast (centre)');
+  ctrl(ef,'contrastEdge',     0, 3).name('Contrast (edge)');
+  ctrl(ef,'brightnessCentre',-1, 1).name('Brightness (centre)');
+  ctrl(ef,'brightnessEdge',  -1, 1).name('Brightness (edge)');
+  ef.open();
+
+  // Style
+  var stf = gui.addFolder('Style');
+  ctrl(stf,'charSet');
+  ctrl(stf,'color');
+  ctrl(stf,'colorPalette', Object.keys(colorPalettes));
+  ctrl(stf,'fontFamily',   fontOptions);
+  ctrl(stf,'asciiFontColor');
+  ctrl(stf,'asciiBackgroundColor');
+  ctrl(stf,'asciiBackgroundOpacity', 0, 1);
+  stf.open();
+
+  // Media
+  var mf = gui.addFolder('Media');
+  ctrl(mf,'showMedia');
+  ctrl(mf,'invert');
+  ctrl(mf,'videoSpeed', 0.1, 2);
+  ctrl(mf,'loopMedia');
+  mf.open();
+
+  // Gooey
+  var gf = gui.addFolder('Gooey');
+  var uiGroup = document.querySelector('.pills');
+
+  gf.add(S, 'gooeyEnabled').name('Gooey Effect').onChange(function(v){
+    uiGroup.classList.toggle('gooey', v);
+  });
+
+  gf.add(S, 'gooeyBlur', 0, 30).name('Melt Radius').step(0.5).onChange(function(v){
+    document.getElementById('goo-blur').setAttribute('stdDeviation', v);
+  });
+
+  var updateMatrix = function(){
+    var a  = S.gooeyStrength;
+    var t  = S.gooeyThreshold;
+    var b  = -(a * t);
+    document.getElementById('goo-matrix').setAttribute('values', '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ' + a + ' ' + b);
+    var borderB = -(a * Math.max(0, t - S.gooeyBorderWidth));
+    var filters = document.querySelectorAll('#goo feColorMatrix');
+    if (filters.length >= 2) {
+      filters[1].setAttribute('values', '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ' + a + ' ' + borderB);
+    }
+  };
+
+  gf.add(S, 'gooeyThreshold', 0, 1).name('Merge Amount').step(0.01).onChange(updateMatrix);
+  gf.add(S, 'gooeyStrength', 1, 50).name('Edge Sharpness').step(0.5).onChange(updateMatrix);
+  gf.add(S, 'gooeyBorderWidth', 0, 0.3).name('Outline Width').step(0.01).onChange(updateMatrix);
+
+  var bridges = document.querySelectorAll('.bridge');
+  var updateBridges = function(){
+    bridges.forEach(function(el){
+      el.style.width  = S.bridgeWidth + 'px';
+      el.style.height = S.bridgeHeight + 'px';
+    });
+  };
+
+  gf.add(S, 'bridgeWidth', 0, 60).name('Bridge Width').step(1).onChange(updateBridges);
+  gf.add(S, 'bridgeHeight', 0, 80).name('Bridge Height').step(1).onChange(updateBridges);
+  gf.open();
+
+  /* ---------- init ---------- */
+  uiGroup.classList.toggle('gooey', S.gooeyEnabled);
+  uiGroup.style.gap = '0px';
+  updateBridges();
+  document.querySelectorAll('.media-ascii').forEach(function(el){ new MediaASCII(el); });
+
+  window.addEventListener('scroll', function(){ if(S.debugView) drawDebug(); });
+  window.addEventListener('resize', function(){ if(S.debugView){ resizeDebug(); drawDebug(); } setTimeout(equalizeHeights, 50); });
+
+})(); // end ASCII IIFE
+</script>
+</body>
+</html>
